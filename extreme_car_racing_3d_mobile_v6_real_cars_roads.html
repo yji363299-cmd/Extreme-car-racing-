@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Extreme Car Racing 3D – Realistic Road V6</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07121d;font-family:Arial,sans-serif;touch-action:none}
+#game{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 5px #001}
+.panel{position:absolute;background:#071725bb;border:1px solid #bceaff55;border-radius:12px;padding:8px 11px;backdrop-filter:blur(5px);font-size:11px}
+#stats{top:12px;left:12px;line-height:1.55;min-width:142px}#progressTrack{height:5px;background:#ffffff40;border-radius:5px;margin-top:4px;overflow:hidden}#progressFill{height:100%;width:0;background:#48e6ff;border-radius:5px}#levelToast{position:fixed;top:22%;left:50%;transform:translate(-50%,-50%);padding:12px 22px;border:1px solid #9ceeff;background:#06283ddd;border-radius:14px;color:#fff;font-weight:bold;font-size:22px;display:none;z-index:5;text-align:center;box-shadow:0 5px 25px #0008}#speed{right:12px;bottom:112px;width:90px;height:90px;border:3px solid #b9e8f5;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#061421cc}
+#speed strong{font-size:25px}#speed small{font-size:9px;color:#9edcf4}#message{position:absolute;top:12px;left:50%;transform:translateX(-50%);white-space:nowrap;font-weight:bold;color:#baf2ff}
+#controls{position:fixed;inset:auto 0 18px;display:flex;justify-content:space-between;align-items:end;padding:0 18px;pointer-events:none}
+.group{display:flex;gap:12px;pointer-events:auto}.ctrl{width:65px;height:65px;border-radius:50%;border:2px solid #d9f5ff99;background:#061725bb;color:#fff;font-size:25px;font-weight:bold;box-shadow:0 3px 15px #0008;touch-action:none}
+.ctrl:active{background:#1687ad}.pedal{width:68px;height:68px;border-radius:18px;font-size:12px}
+#nitro{border-color:#42e9ff;color:#70f4ff}
+#startScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(#061522bb,#061522ee);color:white;text-align:center;padding:22px}
+#card{max-width:360px;background:#0b2235ed;border:1px solid #7bdfff66;border-radius:20px;padding:22px;box-shadow:0 15px 50px #0009}
+h1{font-size:26px;margin:0 0 8px}p{font-size:13px;line-height:1.5;color:#c6dce8}
+#go{background:linear-gradient(120deg,#00bce8,#1765d1);border:0;border-radius:12px;padding:14px 24px;color:#fff;font-size:16px;font-weight:bold;width:100%}
+#hint{font-size:11px;color:#9db8c8;margin-top:10px}
+@media(orientation:portrait){#rotate{display:block}}
+#rotate{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#061725dd;color:white;border:1px solid #7bdfff;padding:10px 15px;border-radius:12px;font-size:12px;z-index:3;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+ <div id="stats" class="panel">STAGE 1 · MOUNTAIN SPRINT<br>LEVEL: <b id="level">1</b> · TARGET: <b id="target">500</b> m<br>ZONE: <b id="zone">SNOW MOUNTAIN</b><br>DISTANCE: <b id="dist">0</b> m<br>BEST: <b id="best">0</b> m<br><span id="progressText">0 / 500 m</span><div id="progressTrack"><div id="progressFill"></div></div>
+ <div id="message">EXTREME CAR RACING · REALISTIC ROAD V6</div><div id="levelToast">LEVEL 2 UNLOCKED!</div>
+ <div id="speed"><strong id="kmh">0</strong><small>KM/H</small><small id="gear">GEAR 1</small></div>
+</div>
+<div id="controls">
+ <div class="group"><button class="ctrl" id="left">◀</button><button class="ctrl" id="right">▶</button></div>
+ <div class="group"><button class="ctrl pedal" id="brake">BRAKE</button><button class="ctrl pedal" id="gas">GAS</button><button class="ctrl pedal" id="nitro">N₂O</button></div>
+</div>
+<div id="rotate">Best view: rotate phone to landscape</div>
+<div id="startScreen"><div id="card"><h1>EXTREME CAR RACING 3D</h1><p>V6: more detailed procedural 3D cars, asphalt shoulders, road edge lines and level-based mountain worlds.</p><button id="go">START 3D RACE</button><div id="hint">Needs internet to load the Three.js 3D engine. Works best in landscape mode.</div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const root=document.getElementById('game');
+if(!window.THREE){document.getElementById('hint').textContent='3D engine could not load. Check internet and reopen this page.';return;}
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9acbe7);scene.fog=new THREE.Fog(0x9acbe7,90,310);
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,500);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.1));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=false;root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe8f6ff,0x52645a,1.45));
+const sun=new THREE.DirectionalLight(0xfff4dc,1.35);sun.position.set(-35,65,25);sun.castShadow=false;scene.add(sun);
+const mat=(c,r=.7,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+const snow=mat(0xe8f5fb),pine1=mat(0x164b3b),pine2=mat(0x24634b),roadMat=mat(0x303943,.95),lineMat=mat(0xf4f4e8),railMat=mat(0xbac7ce,.45,.6);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(600,600),snow);ground.rotation.x=-Math.PI/2;ground.position.y=-.15;ground.receiveShadow=true;scene.add(ground);
+function box(parent,w,h,d,material,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;}
+function makeCar(color=0x087bea){
+ const g=new THREE.Group();
+ const body=mat(color,.25,.48),dark=mat(0x101820,.28,.22),glass=mat(0x102b3d,.13,.45),
+       rubber=mat(0x080b10,.92),metal=mat(0x9eabb5,.3,.75),
+       head=mat(0xfff4d2,.2,.15),tail=mat(0xff263c,.2,.1);
+ // Lower body and tapered bonnet.
+ const base=new THREE.Mesh(new THREE.BoxGeometry(1.86,.42,3.65),body);
+ base.position.y=.62;g.add(base);base.castShadow=true;
+ const bonnet=new THREE.Mesh(new THREE.BoxGeometry(1.72,.16,1.24),body);
+ bonnet.position.set(0,.86,-1.08);g.add(bonnet);
+ const nose=new THREE.Mesh(new THREE.BoxGeometry(1.68,.19,.38),body);
+ nose.position.set(0,.69,-1.83);g.add(nose);
+ // Cabin, windshield and rear glass.
+ const cabin=new THREE.Mesh(new THREE.BoxGeometry(1.42,.58,1.66),glass);
+ cabin.position.set(0,1.08,.12);g.add(cabin);
+ const roof=new THREE.Mesh(new THREE.BoxGeometry(1.27,.09,.83),body);
+ roof.position.set(0,1.39,.22);g.add(roof);
+ const frontGlass=new THREE.Mesh(new THREE.BoxGeometry(1.32,.035,.58),glass);
+ frontGlass.position.set(0,1.31,-.56);frontGlass.rotation.x=-.28;g.add(frontGlass);
+ const rearGlass=new THREE.Mesh(new THREE.BoxGeometry(1.3,.035,.48),glass);
+ rearGlass.position.set(0,1.3,.83);rearGlass.rotation.x=.32;g.add(rearGlass);
+ // Bumpers, grille, splitter and side skirts.
+ box(g,1.82,.13,.22,dark,0,.43,-1.84);
+ box(g,.78,.16,.035,dark,0,.65,-2.015);
+ box(g,1.95,.09,.34,dark,0,.34,-1.82);
+ for(const x of [-.91,.91])box(g,.12,.15,2.65,dark,x,.43,0);
+ // Headlamps and rear lamps.
+ for(const x of [-.62,.62]){
+  box(g,.43,.10,.045,head,x,.76,-1.91);
+  box(g,.36,.11,.05,tail,x,.69,1.86);
+  box(g,.2,.07,.08,metal,x,.45,1.91);
+ }
+ // Four wheels with visible alloy hubs and brake discs.
+ for(const x of [-.99,.99])for(const z of [-1.18,1.2]){
+  const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.24,20),rubber);
+  wheel.rotation.z=Math.PI/2;wheel.position.set(x,.4,z);wheel.castShadow=true;g.add(wheel);
+  const rim=new THREE.Mesh(new THREE.CylinderGeometry(.235,.235,.255,16),metal);
+  rim.rotation.z=Math.PI/2;rim.position.set(x,.4,z);g.add(rim);
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.265,12),dark);
+  hub.rotation.z=Math.PI/2;hub.position.set(x,.4,z);g.add(hub);
+ }
+ // Mirrors, vents, rear diffuser and subtle sport spoiler.
+ for(const x of [-.86,.86]){
+  const mirror=box(g,.22,.12,.25,body,x,1.04,-.39);mirror.rotation.y=x*.2;
+  box(g,.18,.025,.42,dark,x,.96,-1.18);
+ }
+ box(g,1.78,.09,.16,dark,0,.49,1.78);
+ box(g,1.95,.08,.16,body,0,1.18,1.52);
+ for(const x of [-.78,.78])box(g,.09,.24,.11,dark,x,1.05,1.52);
+ // Exhausts and blue side accent.
+ for(const x of [-.42,.42])box(g,.17,.08,.15,metal,x,.37,1.91);
+ const accent=mat(0x4bdcff,.24,.4);
+ for(const x of [-.985,.985])box(g,.025,.045,2.15,accent,x,.53,0);
+ return g;
+}
+const player=makeCar(0x075fd3);scene.add(player);player.position.set(0,0,4);
+function makeTree(x,z,scale=1){const g=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.13*scale,.2*scale,1.5*scale,7),mat(0x59442e));trunk.position.y=.75*scale;g.add(trunk);for(let i=0;i<3;i++){const cone=new THREE.Mesh(new THREE.ConeGeometry((1.15-i*.22)*scale,1.8*scale,7),i%2?pine1:pine2);cone.position.y=(1.5+i*.72)*scale;cone.castShadow=true;g.add(cone)}g.position.set(x,0,z);g.userData.recycle=true;scene.add(g);}
+function makeMountain(x,z,scale){
+  const rock=mat(0x718895,.98),darkRock=mat(0x526b79,.98),snowCap=mat(0xf1f8fb,.95);
+  function ridge(radius,height,material,seed){
+    const geo=new THREE.ConeGeometry(radius*scale,height*scale,8,3);
+    const p=geo.attributes.position;
+    for(let i=0;i<p.count;i++){
+      const xx=p.getX(i),yy=p.getY(i),zz=p.getZ(i);
+      const wave=Math.sin((xx+seed)*1.6)*Math.cos((zz-seed)*1.25);
+      const factor=1+wave*.12;
+      p.setXYZ(i,xx*factor,yy+(yy>0?Math.abs(wave)*.65*scale:0),zz*factor);
+    }
+    geo.computeVertexNormals();
+    const mesh=new THREE.Mesh(geo,material);
+    mesh.position.set(x,height*.47*scale,z);
+    mesh.rotation.y=seed*.29;
+    scene.add(mesh);
+  }
+  ridge(15,27,rock,x*.13+z*.01);
+  ridge(10.5,21,darkRock,x*.17-z*.02);
+  const cap=new THREE.Mesh(new THREE.ConeGeometry(7*scale,10*scale,8,2),snowCap);
+  cap.position.set(x,19*scale,z);
+  cap.rotation.y=.35;
+  scene.add(cap);
+}
+for(let i=0;i<15;i++){let z=-i*13-20;makeMountain(-34-(i%4)*7,z,.8+(i%3)*.25);makeMountain(36+(i%5)*5,z,1+(i%2)*.25);}
+for(let i=0;i<58;i++){let z=20-i*7,c=roadCenter(z);makeTree(c-13-(i%5)*2,z,.7+(i%3)*.18);makeTree(c+13+(i%4)*2,z,.7+(i%4)*.15);}
+function roadCenter(z){return Math.sin((z+20)*.008)*5.2+Math.sin(z*.019)*1.25;}
+function makeRibbon(width,y,zStart,zEnd,material){
+ const verts=[],indices=[],segments=240;
+ for(let i=0;i<=segments;i++){
+  const z=zStart+(zEnd-zStart)*i/segments,c=roadCenter(z);
+  verts.push(c-width/2,y,z,c+width/2,y,z);
+  if(i<segments){let a=i*2;indices.push(a,a+1,a+2,a+1,a+3,a+2);}
+ }
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setIndex(indices);geo.computeVertexNormals();
+ const mesh=new THREE.Mesh(geo,material);mesh.receiveShadow=true;scene.add(mesh);return mesh;
+}
+makeRibbon(15,.02,130,-470,roadMat);
+makeRibbon(19,-.018,130,-470,mat(0x89969d,.98));
+makeRibbon(18,-.005,130,-470,snow);
+// Dark asphalt shoulder strips and bright edge lines.
+for(const side of [-1,1]){
+ const shoulderMat=mat(0x59636a,.96);
+ const edgeMat=mat(0xf4f4e8,.8);
+ const shoulder=new THREE.Mesh(new THREE.BufferGeometry(),shoulderMat);
+ const edge=new THREE.Mesh(new THREE.BufferGeometry(),edgeMat);
+ function buildRoadStrip(mesh,inner,outer,y){
+  const v=[],idx=[],n=240;
+  for(let i=0;i<=n;i++){
+   const z=130+( -470-130)*i/n,c=roadCenter(z);
+   v.push(c+side*inner,y,z,c+side*outer,y,z);
+   if(i<n){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+  geo.setIndex(idx);geo.computeVertexNormals();mesh.geometry.dispose();mesh.geometry=geo;scene.add(mesh);
+ }
+ buildRoadStrip(shoulder,7.5,9.3,.008);
+ buildRoadStrip(edge,7.05,7.18,.045);
+}
+const dashMat=mat(0xf4f4e8);
+for(let z=125;z>-465;z-=12){
+ const dash=new THREE.Mesh(new THREE.BoxGeometry(.16,.03,5),dashMat);
+ dash.position.set(roadCenter(z),.055,z);
+ dash.rotation.y=-Math.atan2(roadCenter(z+1)-roadCenter(z-1),2);
+ scene.add(dash);dash.userData.recycle=true;
+}
+for(const side of [-1,1]){
+ const railPoints=[];
+ for(let z=130;z>=-470;z-=3)railPoints.push(new THREE.Vector3(roadCenter(z)+side*7.9,.7,z));
+ const railGeo=new THREE.BufferGeometry().setFromPoints(railPoints);
+ const rail=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPoints),320,.095,6,false),railMat);
+ rail.castShadow=true;scene.add(rail);
+ for(let z=126;z>-465;z-=9){
+  const post=box(scene,.16,.85,.18,railMat,roadCenter(z)+side*7.9,.42,z);
+  post.rotation.y=-Math.atan2(roadCenter(z+1)-roadCenter(z-1),2);
+ }
+}
+const traffic=[];for(let i=0;i<5;i++){const c=makeCar([0xd52c3d,0xe5a22b,0x252e3a,0x18a57a][i%4]);c.scale.setScalar(.82);c.position.set(roadCenter(-35-i*48)+[-3.6,0,3.6][i%3],0,-35-i*48);scene.add(c);traffic.push(c);}
+const levelThemes=[
+ {name:'SNOW MOUNTAIN',sky:0x9acbe7,fog:0x9acbe7,ground:0xe8f5fb,road:0x303943,tree1:0x164b3b,tree2:0x24634b},
+ {name:'PINE FOREST',sky:0x8db8a0,fog:0x8db8a0,ground:0x6d8662,road:0x303a34,tree1:0x17452d,tree2:0x326b3e},
+ {name:'ROCKY CANYON',sky:0xe6b58b,fog:0xd7a47c,ground:0xb58b69,road:0x393536,tree1:0x566044,tree2:0x7b7547},
+ {name:'NIGHT HIGHWAY',sky:0x101d3b,fog:0x182744,ground:0x283244,road:0x202631,tree1:0x152d35,tree2:0x20424a},
+ {name:'FROZEN PEAKS',sky:0xb8d9e9,fog:0xb8d9e9,ground:0xf5fbff,road:0x35404c,tree1:0x244b50,tree2:0x397078}
+];
+let appliedTheme=-1;
+function applyLevelTheme(level){
+ const index=(level-1)%levelThemes.length,theme=levelThemes[index];
+ if(index===appliedTheme)return;
+ appliedTheme=index;
+ scene.background.setHex(theme.sky);scene.fog.color.setHex(theme.fog);
+ ground.material.color.setHex(theme.ground);roadMat.color.setHex(theme.road);
+ pine1.color.setHex(theme.tree1);pine2.color.setHex(theme.tree2);
+ document.getElementById('zone').textContent=theme.name;
+}
+
+const keys={left:false,right:false,gas:false,brake:false,nitro:false};let speed=0,offset=0,distance=0,active=false,last=performance.now();let best=+(localStorage.getItem('erc3dBest')||0);let currentLevel=1;const LEVEL_LENGTH=500;let toastTimer=0;
+document.getElementById('best').textContent=best;
+function bind(id,key){const el=document.getElementById(id);const on=e=>{e.preventDefault();keys[key]=true};const off=e=>{e.preventDefault();keys[key]=false};el.addEventListener('pointerdown',on);['pointerup','pointercancel','pointerleave'].forEach(ev=>el.addEventListener(ev,off));}
+['left','right','gas','brake','nitro'].forEach(k=>bind(k,k));
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true;if(e.key==='ArrowUp'||e.key==='w')keys.gas=true;if(e.key==='ArrowDown'||e.key==='s')keys.brake=true;if(e.key===' ')keys.nitro=true;});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false;if(e.key==='ArrowUp'||e.key==='w')keys.gas=false;if(e.key==='ArrowDown'||e.key==='s')keys.brake=false;if(e.key===' ')keys.nitro=false;});
+document.getElementById('go').onclick=()=>{active=true;distance=0;currentLevel=1;appliedTheme=-1;applyLevelTheme(1);document.getElementById('level').textContent='1';document.getElementById('target').textContent=LEVEL_LENGTH;document.getElementById('progressText').textContent='0 / '+LEVEL_LENGTH+' m';document.getElementById('progressFill').style.width='0%';document.getElementById('startScreen').style.display='none';renderer.domElement.requestPointerLock?.();};
+function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.04);last=now;
+ if(active){
+  const difficulty=1+Math.min(currentLevel-1,8)*.045;const accel=(keys.gas?24:7)*difficulty;speed+=accel*dt;if(keys.brake)speed-=38*dt;if(keys.nitro)speed+=18*dt;speed=THREE.MathUtils.clamp(speed,0,keys.nitro?70:55);
+  if(keys.left)offset-=dt*(2.1+speed*.035);if(keys.right)offset+=dt*(2.1+speed*.035);offset=THREE.MathUtils.clamp(offset,-5.1,5.1);
+  player.position.x=THREE.MathUtils.lerp(player.position.x,roadCenter(player.position.z)+offset,.14);player.rotation.z=THREE.MathUtils.lerp(player.rotation.z,(keys.left?.12:keys.right?-.12:0),.12);player.position.y=Math.sin(now*.012)*.018;
+  const move=speed*dt;distance+=move*.75;
+   const nextLevel=Math.floor(distance/LEVEL_LENGTH)+1;
+   if(nextLevel>currentLevel){
+     currentLevel=nextLevel;applyLevelTheme(currentLevel);
+     const toast=document.getElementById('levelToast');
+     toast.textContent='LEVEL '+currentLevel+' UNLOCKED!';
+     toast.style.display='block';toastTimer=2.2;
+   }
+   const levelProgress=distance%LEVEL_LENGTH;
+   document.getElementById('level').textContent=currentLevel;
+   document.getElementById('target').textContent=currentLevel*LEVEL_LENGTH;
+   document.getElementById('progressText').textContent=Math.floor(levelProgress)+' / '+LEVEL_LENGTH+' m';
+   document.getElementById('progressFill').style.width=(levelProgress/LEVEL_LENGTH*100)+'%';
+   document.getElementById('dist').textContent=Math.floor(distance);document.getElementById('kmh').textContent=Math.round(speed*4.5);document.getElementById('gear').textContent='GEAR '+Math.min(6,Math.max(1,Math.floor(speed/9)+1));
+  if(distance>best){best=Math.floor(distance);localStorage.setItem('erc3dBest',best);document.getElementById('best').textContent=best;}
+  for(const c of traffic){c.position.z+=move;if(c.position.z>12){c.position.z=-260-Math.random()*170;c.position.x=roadCenter(c.position.z)+[-3.6,0,3.6][Math.floor(Math.random()*3)];}if(Math.abs(c.position.z-player.position.z)<2.8&&Math.abs(c.position.x-player.position.x)<1.55){speed*=.94;}}
+  // repeat the scenery down the road to create continuous forward travel
+  for(const obj of scene.children){if(obj.userData.recycle){obj.position.z+=move;if(obj.position.z>35)obj.position.z-=560;}}
+ }
+ const desired=new THREE.Vector3(player.position.x*.55,5.2,player.position.z+10.8);camera.position.lerp(desired,.09);camera.lookAt(roadCenter(player.position.z-13)+offset*.35,1.1,player.position.z-13);
+ renderer.render(scene,camera);
+}
+requestAnimationFrame(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.1));});
+})();
+</script>
+</body></html>
